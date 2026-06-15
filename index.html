@@ -199,7 +199,7 @@ body{
 }
 .chip.active{background:#fff;color:var(--green-deep);box-shadow:var(--shadow-sm)}
 
-.table-scroll{overflow-x:auto}
+.table-scroll{overflow:auto;max-height:72vh}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{
   text-align:right;padding:13px 16px;font-weight:600;font-size:11.5px;
@@ -277,7 +277,7 @@ footer{margin-top:24px;text-align:center;font-size:11.5px;color:var(--muted)}
 <body>
 
 <!-- ============================================================
-     CONFIGURACIÓN — 
+     CONFIGURACIÓN — edita aquí
      ============================================================ -->
 <script>
 const CONFIG = {
@@ -311,7 +311,7 @@ const CONFIG = {
   },
 
   REFRESH_SEGUNDOS: 5,   // cada cuánto vuelve a leer los Excel
-  POR_PAGINA: 12,        // filas por página en la tabla
+  POR_PAGINA: 12,        // (ya no se usa: la tabla muestra todos los productos en una sola hoja)
   LOCALE: "es-MX",
   MONEDA: "MXN"
 };
@@ -594,7 +594,6 @@ const COLUMNS = [
   {key:"desc", label:"Descripción", cls:"l"},
   ...CONFIG.SUCURSALES.map(s=>({key:"s_"+s.id, label:s.nombre, branch:s.id})),
   {key:"existencia", label:"Existencia"},
-  {key:"costo", label:"Costo"},
   {key:"valor", label:"Valor"}
 ];
 
@@ -636,22 +635,17 @@ function applyFilterSort(rows){
 
 function renderTable(rows){
   const filtered=applyFilterSort(rows);
-  const per=CONFIG.POR_PAGINA;
-  const pages=Math.max(1, Math.ceil(filtered.length/per));
-  if(state.page>pages) state.page=pages;
-  const start=(state.page-1)*per;
-  const slice=filtered.slice(start, start+per);
 
   $("#tableCount").textContent =
     `${fmtInt(filtered.length)} producto${filtered.length===1?"":"s"} en vista`;
 
   const tb=$("#tbody");
-  if(!slice.length){
+  if(!filtered.length){
     tb.innerHTML=`<tr><td colspan="${COLUMNS.length}"><div class="empty">
       <div class="big">Sin resultados</div>
       Ajusta la búsqueda o cambia el filtro para ver productos.</div></td></tr>`;
   }else{
-    tb.innerHTML=slice.map(p=>{
+    tb.innerHTML=filtered.map(p=>{
       const sucCells=CONFIG.SUCURSALES.map(s=>{
         const v=p.suc[s.id]||0;
         return `<td class="numeric ${v?'':'zero'}">${v?fmtNum(v):"—"}</td>`;
@@ -661,37 +655,17 @@ function renderTable(rows){
         <td class="l desc-cell" title="${esc(p.desc)}">${esc(p.desc)}</td>
         ${sucCells}
         <td class="numeric val-strong">${fmtNum(p.existencia)}</td>
-        <td class="numeric ${p.costo?'':'muted-cell'}">${p.costo?fmtMoney2(p.costo):"—"}</td>
         <td class="numeric ${p.valor?'val-strong':'muted-cell'}">${p.valor?fmtMoney(p.valor):"—"}</td>
       </tr>`;
     }).join("");
   }
-  renderPager(filtered.length, pages, start, slice.length);
+  renderPager(filtered.length);
 }
 
-function renderPager(total, pages, start, shown){
+function renderPager(total){
   const el=$("#pager");
   if(total===0){ el.innerHTML=""; return; }
-  const p=state.page;
-  const nums=[];
-  const push=(n)=>nums.push(`<button class="pg ${n===p?'active':''}" data-p="${n}">${n}</button>`);
-  const ell=()=>nums.push(`<span style="color:var(--muted);padding:0 2px">…</span>`);
-  const win=[];
-  for(let i=1;i<=pages;i++){ if(i===1||i===pages||Math.abs(i-p)<=1) win.push(i); }
-  let prev=0;
-  win.forEach(n=>{ if(n-prev>1) ell(); push(n); prev=n; });
-
-  el.innerHTML=`
-    <div class="info">Mostrando ${fmtInt(start+1)}–${fmtInt(start+shown)} de ${fmtInt(total)}</div>
-    <div class="ctrls">
-      <button class="pg" data-p="${p-1}" ${p<=1?'disabled':''}>‹</button>
-      ${nums.join("")}
-      <button class="pg" data-p="${p+1}" ${p>=pages?'disabled':''}>›</button>
-    </div>`;
-  el.querySelectorAll(".pg[data-p]").forEach(b=>{
-    if(b.disabled) return;
-    b.onclick=()=>{ state.page=parseInt(b.dataset.p,10); renderTable(state._rows); window.scrollTo({top:document.querySelector('.table-card').offsetTop-20,behavior:'smooth'}); };
-  });
+  el.innerHTML=`<div class="info">Mostrando ${fmtInt(total)} producto${total===1?"":"s"} (todos en una sola hoja)</div>`;
 }
 
 function renderAll(){
