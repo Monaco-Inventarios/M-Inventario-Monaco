@@ -589,17 +589,26 @@ function renderTop(rows){
     </div>`).join("");
 }
 
-const COLUMNS = [
-  {key:"code", label:"Código", cls:"l"},
-  {key:"desc", label:"Descripción", cls:"l"},
-  ...CONFIG.SUCURSALES.map(s=>({key:"s_"+s.id, label:s.nombre, branch:s.id})),
-  {key:"existencia", label:"Existencia"},
-  {key:"valor", label:"Valor"}
-];
+// La columna "Costo" se oculta SOLO en la pestaña PT (Producto Terminado).
+// En MP y TELA se muestra. Edita esta lista si cambian las clases sin costo.
+const CLASES_SIN_COSTO = ["PT"];
+const mostrarCosto = () => !CLASES_SIN_COSTO.includes(state.activeClass);
+
+function columns(){
+  const cols = [
+    {key:"code", label:"Código", cls:"l"},
+    {key:"desc", label:"Descripción", cls:"l"},
+    ...CONFIG.SUCURSALES.map(s=>({key:"s_"+s.id, label:s.nombre, branch:s.id})),
+    {key:"existencia", label:"Existencia"}
+  ];
+  if(mostrarCosto()) cols.push({key:"costo", label:"Costo"});
+  cols.push({key:"valor", label:"Valor"});
+  return cols;
+}
 
 function renderHead(){
   const el=$("#thead");
-  el.innerHTML = "<tr>"+COLUMNS.map(c=>{
+  el.innerHTML = "<tr>"+columns().map(c=>{
     const active = state.sortKey===c.key;
     const arrow = active ? (state.sortDir==="asc"?"▲":"▼") : "";
     return `<th class="${c.cls||""}" data-k="${c.key}">${c.label}<span class="arrow">${arrow}</span></th>`;
@@ -641,20 +650,25 @@ function renderTable(rows){
 
   const tb=$("#tbody");
   if(!filtered.length){
-    tb.innerHTML=`<tr><td colspan="${COLUMNS.length}"><div class="empty">
+    tb.innerHTML=`<tr><td colspan="${columns().length}"><div class="empty">
       <div class="big">Sin resultados</div>
       Ajusta la búsqueda o cambia el filtro para ver productos.</div></td></tr>`;
   }else{
+    const conCosto = mostrarCosto();
     tb.innerHTML=filtered.map(p=>{
       const sucCells=CONFIG.SUCURSALES.map(s=>{
         const v=p.suc[s.id]||0;
         return `<td class="numeric ${v?'':'zero'}">${v?fmtNum(v):"—"}</td>`;
       }).join("");
+      const costoCell = conCosto
+        ? `<td class="numeric ${p.costo?'':'muted-cell'}">${p.costo?fmtMoney2(p.costo):"—"}</td>`
+        : "";
       return `<tr>
         <td class="l code-cell">${p.code}</td>
         <td class="l desc-cell" title="${esc(p.desc)}">${esc(p.desc)}</td>
         ${sucCells}
         <td class="numeric val-strong">${fmtNum(p.existencia)}</td>
+        ${costoCell}
         <td class="numeric ${p.valor?'val-strong':'muted-cell'}">${p.valor?fmtMoney(p.valor):"—"}</td>
       </tr>`;
     }).join("");
@@ -665,11 +679,14 @@ function renderTable(rows){
 function renderPager(total){
   const el=$("#pager");
   if(total===0){ el.innerHTML=""; return; }
-  el.innerHTML=`<div class="info">Mostrando ${fmtInt(total)} producto${total===1?"":"s"} (todos en una sola hoja)</div>`;
+  el.innerHTML=`<div class="info">Mostrando ${fmtInt(total)} producto${total===1?"":"s"} </div>`;
 }
 
 function renderAll(){
   renderTabs();
+  // Si la columna por la que se ordena no existe en esta pestaña (ej. Costo en PT),
+  // se reinicia el orden a Valor (descendente).
+  if(!columns().some(c=>c.key===state.sortKey)){ state.sortKey="valor"; state.sortDir="desc"; }
   const rows=buildRows();
   state._rows=rows;
   renderKPIs(computeKPIs(rows));
